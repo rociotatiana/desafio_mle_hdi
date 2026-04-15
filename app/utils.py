@@ -17,3 +17,16 @@ def log_prediction(data: dict, prediction: float):
     
     file_exists = os.path.isfile(log_file)
     df_log.to_csv(log_file, mode='a', index=False, header=not file_exists)
+
+def run_branch_a(df, models):
+    """Ejecuta la rama de pipelines de preprocesamiento 1 -> 2 -> 4"""
+    df = models["pipeline_1"](df)
+    df = models["pipeline_2"](df)
+    df = models["pipeline_4"](df)
+    return df
+
+def run_branch_b(df, models):
+    """Ejecuta la rama de pipelines de preprocesamiento 3 -> 5"""
+    df = models["pipeline_3"](df)
+    df = models["pipeline_5"](df)
+    return df

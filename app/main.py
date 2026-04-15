@@ -1,13 +1,14 @@
 import os
 import pandas as pd
 import numpy as np
+import asyncio
 import dill
 import builtins
 from fastapi import FastAPI, BackgroundTasks, HTTPException, status
 from contextlib import asynccontextmanager
 
-from app.schemas import ClaimInput, PredictionOutput
-from app.utils import IMPUTATION_DICT, log_prediction
+from app.schemas import ClaimInput, ModelFeatures, PredictionOutput
+from app.utils import IMPUTATION_DICT, log_prediction, run_branch_a, run_branch_b
 
 builtins.np = np
 
@@ -38,37 +39,26 @@ async def predict(claim: ClaimInput, background_tasks: BackgroundTasks):
 
         df = pd.DataFrame([claim.model_dump()])
 
+        # --- Imputación de Datos ---
+        for col, val in IMPUTATION_DICT.items():
+            if col not in df.columns:
+                df[col] = val
+
         try:
-            # --- Imputación Inicial ---
-            for col, val in IMPUTATION_DICT.items():
-                if col not in df.columns:
-                    df[col] = val
-                df[col] = df[col].fillna(val)
-
             # --- Ejecución de Pipelines ---
-            df = models["pipeline_1"](df)
-            df = models["pipeline_2"](df)
-            df = models["pipeline_4"](df)
-            df = models["pipeline_3"](df)
-            df = models["pipeline_5"](df)
+            task_a = asyncio.to_thread(run_branch_a, df.copy(), models)
+            task_b = asyncio.to_thread(run_branch_b, df.copy(), models)
 
-            # --- Imputación Final ---
-            for col, val in IMPUTATION_DICT.items():
-                if col in df.columns:
-                    df[col] = df[col].fillna(val)
-
+            df_a, df_b = await asyncio.gather(task_a, task_b)
+            df_final = df_a.combine_first(df_b)
             # --- Selección de Features y Predicción ---
-            features = ['log_total_piezas', 'marca_vehiculo_encoded', 'valor_vehiculo', 'valor_por_pieza', 'antiguedad_vehiculo']
-            X = df[features].astype({
-                'log_total_piezas': 'float64', 
-                'marca_vehiculo_encoded': 'int64', 
-                'valor_vehiculo': 'int64', 
-                'valor_por_pieza': 'int64', 
-                'antiguedad_vehiculo': 'int64'
-            })
+
+            raw_features = df_final.to_dict(orient='records')[0]
+            validated_features = ModelFeatures(**raw_features)
+            X = pd.DataFrame([validated_features.model_dump()])
 
             prediction = float(models["regressor"].predict(X)[0])
-
+            
         except KeyError as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
