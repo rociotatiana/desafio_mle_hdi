@@ -53,7 +53,7 @@ async def predict(claim: ClaimInput, background_tasks: BackgroundTasks):
             task_a = asyncio.to_thread(run_branch_a, df.copy(), models)
             task_b = asyncio.to_thread(run_branch_b, df.copy(), models)
 
-            (df_a, times_a), (df_b, times_b) = await asyncio.gather(task_a, task_b)
+            (df_a, times_a), (df_b, times_b) = await asyncio.wait_for(asyncio.gather(task_a, task_b), timeout=12.0 )
             profiling_data = {**times_a, **times_b}
             df_final = df_a.combine_first(df_b)
 
@@ -65,6 +65,13 @@ async def predict(claim: ClaimInput, background_tasks: BackgroundTasks):
 
             prediction = float(models["regressor"].predict(X)[0])
             
+        except asyncio.TimeoutError:
+            latency = time.perf_counter() - start_time
+            background_tasks.add_task(log_prediction, claim_dict, None, latency, 504, "Timeout interno excedido")
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="El procesamiento del siniestro excedió el tiempo límite permitido."
+            )
         except KeyError as e:
             latency = time.perf_counter() - start_time
             background_tasks.add_task(log_prediction, claim_dict, None, latency, 422, profiling_data, e)
@@ -94,3 +101,18 @@ async def predict(claim: ClaimInput, background_tasks: BackgroundTasks):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error inesperado en el servidor."
         )
+    
+@app.get("/health", tags=["Monitoring"])
+async def health_check():
+    """Verifica la salud de la API y la presencia de modelos cargados."""
+    if not models or len(models) < 6:
+        raise HTTPException(
+            status_code=503, 
+            detail="Models not loaded yet"
+        )
+    
+    return {
+        "status": "healthy",
+        "models_loaded": list(models.keys()),
+        "environment": os.getenv("ENV", "development")
+    }

@@ -1,6 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from unittest.mock import patch
+import asyncio
+
 
 @pytest.fixture
 def client():
@@ -20,10 +23,10 @@ VALID_CLAIM = {
 
 # --- Tests ---
 
-def test_read_main(client):
-    """Verifica que la API esté arriba (Healthcheck simple)."""
-    response = client.get("/docs")
+def test_health_check(client):
+    response = client.get("/health")
     assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
 
 def test_prediction_success(client):
     """Prueba una predicción exitosa con datos válidos."""
@@ -67,8 +70,8 @@ def test_null_handling_pydantic(client):
 
 def test_internal_profiling_logs(client):
     """
-    Opcional: Verifica que la respuesta no contenga información sensible
-    del profiling si ocurre un error (Seguridad).
+    Verifica que la respuesta no contenga información sensible
+    del profiling si ocurre un error.
     """
     payload = {"claim_id": "error"}
     response = client.post("/predict", json=payload)
@@ -76,3 +79,23 @@ def test_internal_profiling_logs(client):
     
     assert "pipeline" not in response.text.lower()
     assert "marca_vehiculo_encoded" not in response.text.lower()
+
+def test_prediction_timeout(client):
+    """
+    Simula un timeout reduciendo el tiempo de espera permitido.
+    Se utiliza un patch para modificar el timeout de la función wait_for en tiempo de ejecución.
+    """
+    with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError):
+        payload = {
+            "claim_id": 999,
+            "marca_vehiculo": "toyota",
+            "antiguedad_vehiculo": 1,
+            "tipo_poliza": 1,
+            "taller": 1,
+            "partes_a_reparar": 1,
+            "partes_a_reemplazar": 1
+        }
+        response = client.post("/predict", json=payload)
+        
+        assert response.status_code == 504
+        assert "excedió el tiempo límite" in response.json()["detail"]
