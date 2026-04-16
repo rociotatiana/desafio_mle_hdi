@@ -1,9 +1,7 @@
 import os
 import pandas as pd
-import numpy as np
 import asyncio
 import dill
-import builtins
 import time
 from fastapi import FastAPI, BackgroundTasks, HTTPException, status
 from contextlib import asynccontextmanager
@@ -11,7 +9,6 @@ from contextlib import asynccontextmanager
 from app.schemas import ClaimInput, ModelFeatures, PredictionOutput
 from app.utils import IMPUTATION_DICT, log_prediction, run_branch_a, run_branch_b
 
-builtins.np = np
 
 models = {}
 
@@ -35,6 +32,7 @@ app = FastAPI(title="HDI Seguros - Predictor de tiempo de reparación", lifespan
 async def predict(claim: ClaimInput, background_tasks: BackgroundTasks):
     start_time = time.perf_counter()
     claim_dict = claim.model_dump()
+
     try:
         if claim.tipo_poliza == 4:
             latency = time.perf_counter() - start_time
@@ -58,7 +56,6 @@ async def predict(claim: ClaimInput, background_tasks: BackgroundTasks):
             df_final = df_a.combine_first(df_b)
 
             # --- Selección de Features y Predicción ---
-
             raw_features = df_final.to_dict(orient='records')[0]
             validated_features = ModelFeatures(**raw_features)
             X = pd.DataFrame([validated_features.model_dump()])
@@ -110,7 +107,6 @@ async def health_check():
             status_code=503, 
             detail="Models not loaded yet"
         )
-    
     return {
         "status": "healthy",
         "models_loaded": list(models.keys()),

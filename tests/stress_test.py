@@ -3,9 +3,11 @@ import httpx
 import time
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 
 URL = "http://localhost:8000/predict"
-DATASET_PATH = "claims_dataset.csv"
+DATASET_PATH = "data/claims_dataset.csv"
+output_dir = Path("data/stress_tests")
 
 async def send_request(client, row_data):
     """Envía una fila del dataset como payload a la API."""
@@ -71,7 +73,8 @@ async def run_stress_test():
         print(f"Latencia mínima:     {success_df['latency_seconds'].min():.4f} seg")
     
     filename = f"stress_test_evidence_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-    df_results.to_csv(filename, index=False)
+    filepath = output_dir / filename
+    df_results.to_csv(filepath, index=False)
     print(f"\nEvidencia guardada en: {filename}")
 
 if __name__ == "__main__":
