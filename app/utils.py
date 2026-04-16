@@ -15,20 +15,25 @@ IMPUTATION_DICT = {
     'taller': 1, 'partes_a_reparar': 3, 'partes_a_reemplazar': 1
 }
 
-def log_prediction(data: dict, prediction: float, latency: float, status_code: int, profiling_data: dict = None, error_msg: str = None):
+def log_prediction(claim_dict, prediction, latency, status_code, profiling_data=None, error_msg=None):
     """Guarda el log en un CSV de forma persistente."""
-    log_dir = "data"
-    log_file = os.path.join(log_dir, "api_logs.csv")
-
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    log_entry = {**data, "prediction": prediction, "timestamp": datetime.now(), "latency_s": latency, "status_code": status_code, "profiling_data": json.dumps(profiling_data), "error_msg": error_msg}
+    log_file = "data/api_logs.csv"
     
-    df_log = pd.DataFrame([log_entry])
-    
-    file_exists = os.path.isfile(log_file)
-    df_log.to_csv(log_file, mode='a', index=False, header=not file_exists)
+    prof_json = json.dumps(profiling_data) if profiling_data else "null"
+    prof_json_escaped = prof_json.replace('"', '""')
+    err_str = str(error_msg).replace(",", ";") if error_msg else ""
+
+    log_entry = (
+        f"{claim_dict['claim_id']},{claim_dict['marca_vehiculo']},"
+        f"{claim_dict['antiguedad_vehiculo']},{claim_dict['tipo_poliza']},"
+        f"{claim_dict['taller']},{claim_dict['partes_a_reparar']},"
+        f"{claim_dict['partes_a_reemplazar']},{prediction},"
+        f"{pd.Timestamp.now()},{latency},{status_code},"
+        f'"{prof_json_escaped}","{err_str}"\n'
+    )
+
+    with open(log_file, "a") as f:
+        f.write(log_entry)
 
 def run_branch_a(df, models):
     """Ejecuta la rama de pipelines de preprocesamiento 1 -> 2 -> 4"""

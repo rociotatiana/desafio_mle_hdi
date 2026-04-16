@@ -13,7 +13,13 @@ from app.utils import IMPUTATION_DICT, log_prediction, run_branch_a, run_branch_
 models = {}
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):    
+async def lifespan(app: FastAPI):
+    log_file = "data/api_logs.csv"
+    os.makedirs("data", exist_ok=True)
+    if not os.path.exists(log_file):
+        with open(log_file, "w") as f:
+            f.write("claim_id,marca_vehiculo,antiguedad_vehiculo,tipo_poliza,taller,partes_a_reparar,partes_a_reemplazar,prediction,timestamp,latency_s,status_code,profiling_data,error_msg\n")    
+    
     pipeline_names = ["pipeline_1", "pipeline_2", "pipeline_3", "pipeline_4", "pipeline_5"]
     for name in pipeline_names:
         with open(f"pipelines/{name}.pkl", "rb") as f:
