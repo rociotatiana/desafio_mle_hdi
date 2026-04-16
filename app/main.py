@@ -19,7 +19,7 @@ models = {}
 async def lifespan(app: FastAPI):    
     pipeline_names = ["pipeline_1", "pipeline_2", "pipeline_3", "pipeline_4", "pipeline_5"]
     for name in pipeline_names:
-        with open(f"models/{name}.pkl", "rb") as f:
+        with open(f"pipelines/{name}.pkl", "rb") as f:
             models[name] = dill.load(f)
     
     with open("models/linnear_regression.pkl", "rb") as f:
@@ -89,7 +89,7 @@ async def predict(claim: ClaimInput, background_tasks: BackgroundTasks):
         raise http_exc
     except Exception as e:
         latency = time.perf_counter() - start_time
-        background_tasks.add_task(log_prediction, claim_dict, None, latency, 500, profiling_data, e)
+        background_tasks.add_task(log_prediction, claim_dict, None, latency, 500, None, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error inesperado en el servidor."

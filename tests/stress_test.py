@@ -4,67 +4,75 @@ import time
 import pandas as pd
 from datetime import datetime
 
-# Configuración
 URL = "http://localhost:8000/predict"
-CONCURRENT_REQUESTS = 10
+DATASET_PATH = "claims_dataset.csv"
 
-# Payload de ejemplo basado en el esquema de la API
-SAMPLE_DATA = {
-    "claim_id": 999,
-    "marca_vehiculo": "Toyota",
-    "antiguedad_vehiculo": 5,
-    "tipo_poliza": 1,
-    "taller": 10,
-    "partes_a_reparar": 2,
-    "partes_a_reemplazar": 1
-}
-
-async def send_request(client, request_id):
-    """Envía una única petición y mide su tiempo de respuesta."""
+async def send_request(client, row_data):
+    """Envía una fila del dataset como payload a la API."""
+    claim_id = row_data.get("claim_id", "unknown")
     start_time = time.perf_counter()
+    
     try:
-        response = await client.post(URL, json=SAMPLE_DATA, timeout=120.0)
+        response = await client.post(URL, json=row_data, timeout=120.0)
         end_time = time.perf_counter()
         latency = end_time - start_time
         
         return {
-            "id": request_id,
+            "claim_id": claim_id,
             "status_code": response.status_code,
             "latency_seconds": latency,
-            "prediction": response.json().get("prediction")
+            "prediction": response.json().get("prediction") if response.status_code == 200 else None,
+            "error": None if response.status_code == 200 else response.text
         }
     except Exception as e:
-        return {"id": request_id, "error": str(e)}
+        return {
+            "claim_id": claim_id,
+            "status_code": None,
+            "latency_seconds": None,
+            "prediction": None,
+            "error": str(e)
+        }
 
 async def run_stress_test():
-    print(f"🚀 Iniciando Stress Test: {CONCURRENT_REQUESTS} consultas en paralelo...")
+    try:
+        df_input = pd.read_csv(DATASET_PATH, sep='|')
+        df_input = df_input.fillna("nan")
+        print(f"Dataset cargado exitosamente. Total de registros: {len(df_input)}")
+    except Exception as e:
+        print(f"Error al leer el archivo CSV: {e}")
+        return
+
+    payloads = df_input.to_dict(orient='records')
+
+    print(f"Iniciando Stress Test con {len(payloads)} consultas concurrentes...")
+    
+    start_test_time = time.perf_counter()
     
     async with httpx.AsyncClient() as client:
-        tasks = [send_request(client, i) for i in range(CONCURRENT_REQUESTS)]
+        tasks = [send_request(client, payload) for payload in payloads]
         results = await asyncio.gather(*tasks)
     
-    print("Resultados:")
-
-    # Procesar resultados
+    end_test_time = time.perf_counter()
+    
     df_results = pd.DataFrame(results)
-    print(df_results)
-
     
-    # Métricas clave
-    avg_latency = df_results["latency_seconds"].mean()
-    max_latency = df_results["latency_seconds"].max()
-    min_latency = df_results["latency_seconds"].min()
+    success_df = df_results[df_results["status_code"] == 200]
     
-    print("\n--- Resumen del Test ---")
-    print(df_results.to_string(index=False))
-    print(f"\n✅ Latencia Promedio: {avg_latency:.4f} seg")
-    print(f"🔥 Latencia Máxima: {max_latency:.4f} seg")
-    print(f"🧊 Latencia Mínima: {min_latency:.4f} seg")
+    print("\n" + "="*30)
+    print("      RESUMEN DEL TEST")
+    print("="*30)
+    print(f"Total peticiones:    {len(df_results)}")
+    print(f"Peticiones exitosas: {len(success_df)}")
+    print(f"Tiempo total test:   {end_test_time - start_test_time:.2f} seg")
     
-    # Guardar respaldo como CSV o TXT para la entrega
-    filename = f"stress_test_results_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+    if not success_df.empty:
+        print(f"Latencia promedio:   {success_df['latency_seconds'].mean():.4f} seg")
+        print(f"Latencia máxima:     {success_df['latency_seconds'].max():.4f} seg")
+        print(f"Latencia mínima:     {success_df['latency_seconds'].min():.4f} seg")
+    
+    filename = f"stress_test_evidence_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
     df_results.to_csv(filename, index=False)
-    print(f"\n📂 Respaldo guardado en: {filename}")
+    print(f"\nEvidencia guardada en: {filename}")
 
 if __name__ == "__main__":
     asyncio.run(run_stress_test())

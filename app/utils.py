@@ -1,8 +1,12 @@
 from datetime import datetime
 import pandas as pd
+import numpy as np
+import builtins
 import time
 import json
 import os
+
+builtins.np = np
 
 IMPUTATION_DICT = {
     'log_total_piezas': 1.4545, 'marca_vehiculo_encoded': 0,
@@ -11,7 +15,7 @@ IMPUTATION_DICT = {
     'taller': 1, 'partes_a_reparar': 3, 'partes_a_reemplazar': 1
 }
 
-def log_prediction(data: dict, prediction: float, latency: float, status_code: int, profiling_data: dict, error_msg: str = None):
+def log_prediction(data: dict, prediction: float, latency: float, status_code: int, profiling_data: dict = None, error_msg: str = None):
     """Guarda el log en un CSV de forma persistente."""
     log_dir = "data"
     log_file = os.path.join(log_dir, "api_logs.csv")
