@@ -44,7 +44,7 @@ Entrega el siguiente formato JSON:
 }
 ```
 
-### `/healthcheck`
+### `/health`
 
 Corresponde a un endpoint GET de monitoreo de infraestructura, que verifica que el servidor está activo y valida la disponibilidad de los modelos en memoria.
 
