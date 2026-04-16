@@ -86,7 +86,7 @@ docker exec -it hdi_mle_challenge python3 -m tests.stress_test
 
 ## API Logs
 
-El sistema genera un archivo `data/api_logs.csv` que registra cada petición con el siguiente detalle:
+El sistema genera un archivo al construirse el Docker llamado `data/api_logs.csv` que registra cada petición con el siguiente detalle:
 
 - `claim_id` y todos los datos de entrada enviados por el cliente.
 - `prediction`: Resultado final.
