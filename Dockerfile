@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./app ./app
 COPY ./models ./models
 COPY ./data ./data
+COPY ./tests ./tests
 
 RUN useradd -m mluser && chown -R mluser:mluser /app
 USER mluser

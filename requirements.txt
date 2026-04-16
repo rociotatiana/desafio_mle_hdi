@@ -7,3 +7,5 @@ uvicorn
 gunicorn
 python-multipart
 requests
+pytest
+httpx
